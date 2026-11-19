@@ -151,28 +151,24 @@ describe("OdooClient", () => {
 	});
 
 	describe("findTaskByEffect", () => {
-		it.each([
-			["exact", "<ghoodoo.workflow-failure-ab-run-12-1.%@github>"],
-			["prefix", "<ghoodoo.workflow-failure-ab-run-12-1%@github>"],
-		] as const)("searches every task's notes with the %s marker", async (match, pattern) => {
+		it("searches every task's notes with the exact marker", async () => {
 			fetchSpy = mockFetch([authResponse, { result: [{ id: 3, res_id: 44 }] }]);
 			const taskId = await new OdooClient(baseConfig).findTaskByEffect(
 				"workflow-failure-ab-run-12-1",
-				match,
 			);
 			expect(taskId).toBe(44);
 			const callBody = JSON.parse((fetchSpy.mock.calls[1][1] as RequestInit).body as string);
 			expect(callBody.params.args[5]).toEqual([
 				[
 					["model", "=", "project.task"],
-					["message_id", "=like", pattern],
+					["message_id", "=like", "<ghoodoo.workflow-failure-ab-run-12-1.%@github>"],
 				],
 			]);
 		});
 
 		it("returns null without a matching note", async () => {
 			fetchSpy = mockFetch([authResponse, { result: [] }]);
-			expect(await new OdooClient(baseConfig).findTaskByEffect("x", "prefix")).toBeNull();
+			expect(await new OdooClient(baseConfig).findTaskByEffect("x")).toBeNull();
 		});
 	});
 

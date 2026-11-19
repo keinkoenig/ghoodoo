@@ -94,7 +94,7 @@ describe("isWorkflowRunEvent", () => {
 describe("handleWorkflowRunEvent", () => {
 	it("creates the workflow's task and notes the run on a first failure", async () => {
 		const odoo = odooMock();
-		const result = await handleWorkflowRunEvent(failedRun(), odoo, config, { deliveryId: "d1" });
+		const result = await handleWorkflowRunEvent(failedRun(), odoo, config);
 
 		expect(result).toEqual({ processed: 1, errors: [] });
 		expect(odoo.createTask).toHaveBeenCalledWith(
@@ -110,11 +110,9 @@ describe("handleWorkflowRunEvent", () => {
 
 	it("keys the notes by workflow, so another workflow gets another task", async () => {
 		const odoo = odooMock();
-		await handleWorkflowRunEvent(failedRun(), odoo, config, { deliveryId: "d1" });
+		await handleWorkflowRunEvent(failedRun(), odoo, config);
 		const tracked = { projectId: 2, workflows: new Set(["owner/repo:Nightly"]) };
-		await handleWorkflowRunEvent(failedRun({ name: "Nightly" }), odoo, tracked, {
-			deliveryId: "d2",
-		});
+		await handleWorkflowRunEvent(failedRun({ name: "Nightly" }), odoo, tracked);
 		const [first, second] = vi.mocked(odoo.findOpenTask).mock.calls;
 		expect(first[1]).toMatch(/^workflow-failure-[0-9a-f]{16}-run-$/);
 		expect(first[2]).toBe(`[${first[1].slice(0, -"-run-".length)}]`);
@@ -123,9 +121,7 @@ describe("handleWorkflowRunEvent", () => {
 
 	it("notes a later run on the open task of the workflow", async () => {
 		const odoo = odooMock({ findOpenTask: vi.fn().mockResolvedValue(555) });
-		await handleWorkflowRunEvent(failedRun({ id: 4400, run_attempt: 2 }), odoo, config, {
-			deliveryId: "d2",
-		});
+		await handleWorkflowRunEvent(failedRun({ id: 4400, run_attempt: 2 }), odoo, config);
 
 		expect(odoo.createTask).not.toHaveBeenCalled();
 		expect(odoo.addMessage).toHaveBeenCalledWith(
@@ -138,17 +134,16 @@ describe("handleWorkflowRunEvent", () => {
 
 	it("adds nothing when a retry finds the run noted, also on a task closed since", async () => {
 		const odoo = odooMock({ findTaskByEffect: vi.fn().mockResolvedValue(555) });
-		const result = await handleWorkflowRunEvent(failedRun(), odoo, config, { deliveryId: "d4" });
+		const result = await handleWorkflowRunEvent(failedRun(), odoo, config);
 
 		expect(result).toEqual({ processed: 1, errors: [] });
-		expect(vi.mocked(odoo.findTaskByEffect).mock.calls[0][1]).toBe("exact");
 		expect(odoo.createTask).not.toHaveBeenCalled();
 		expect(odoo.addMessage).not.toHaveBeenCalled();
 	});
 
 	it("notes the run on the task this attempt created but did not note", async () => {
 		const odoo = odooMock({ findTaskByDescription: vi.fn().mockResolvedValueOnce(777) });
-		await handleWorkflowRunEvent(failedRun(), odoo, config, { deliveryId: "d5" });
+		await handleWorkflowRunEvent(failedRun(), odoo, config);
 
 		expect(odoo.findTaskByDescription).toHaveBeenCalledWith(
 			expect.stringMatching(/^\[workflow-failure-[0-9a-f]{16}-run-4321-1\]$/),
@@ -161,7 +156,7 @@ describe("handleWorkflowRunEvent", () => {
 
 	it("writes both keys into a new task's description", async () => {
 		const odoo = odooMock();
-		await handleWorkflowRunEvent(failedRun(), odoo, config, { deliveryId: "d8" });
+		await handleWorkflowRunEvent(failedRun(), odoo, config);
 		const { description } = vi.mocked(odoo.createTask).mock.calls[0][0];
 		expect(description).toMatch(
 			/\[workflow-failure-[0-9a-f]{16}\] \[workflow-failure-[0-9a-f]{16}-run-4321-1\]/,
@@ -170,7 +165,7 @@ describe("handleWorkflowRunEvent", () => {
 
 	it("reports an Odoo failure as a processing error, so the queue retries", async () => {
 		const odoo = odooMock({ createTask: vi.fn().mockRejectedValue(new Error("access denied")) });
-		const result = await handleWorkflowRunEvent(failedRun(), odoo, config, { deliveryId: "d6" });
+		const result = await handleWorkflowRunEvent(failedRun(), odoo, config);
 
 		expect(result.processed).toBe(0);
 		expect(result.errors).toEqual([
@@ -185,7 +180,6 @@ describe("handleWorkflowRunEvent", () => {
 			failedRun({ name: "<b>CI</b>", html_url: 'https://github.com/x"><script>' }),
 			odoo,
 			tracked,
-			{ deliveryId: "d7" },
 		);
 		const values = vi.mocked(odoo.createTask).mock.calls[0][0];
 		expect(values.description).toContain("&lt;b&gt;CI&lt;/b&gt;");
@@ -203,12 +197,8 @@ class FakeOdoo {
 	failNextNote = false;
 	private nextId = 900;
 
-	findTaskByEffect = async (id: string, match: "exact" | "prefix") => {
-		const hits = this.notes.filter((note) =>
-			match === "exact" ? note.effect === id : note.effect.startsWith(id),
-		);
-		return hits.at(-1)?.taskId ?? null;
-	};
+	findTaskByEffect = async (id: string) =>
+		this.notes.filter((note) => note.effect === id).at(-1)?.taskId ?? null;
 	// Like Odoo: in any project and also when archived (the task's project or archive flag
 	// does not matter for this lookup, so the fake keeps neither).
 	findTaskByDescription = async (text: string) =>
@@ -247,7 +237,7 @@ class FakeOdoo {
 
 describe("handleWorkflowRunEvent recovery", () => {
 	const deliver = (odoo: FakeOdoo, run: WorkflowRunEvent) =>
-		handleWorkflowRunEvent(run, odoo as unknown as OdooClient, config, { deliveryId: "d" });
+		handleWorkflowRunEvent(run, odoo as unknown as OdooClient, config);
 
 	it("keeps one task when another run arrives between a failed note and its retry", async () => {
 		const odoo = new FakeOdoo();

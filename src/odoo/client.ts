@@ -316,15 +316,15 @@ export class OdooClient {
 	}
 
 	/**
-	 * The task of the newest note with this delivery effect ID (`exact`) or an ID that starts with it
-	 * (`prefix`), on any task. Effect markers live in the message ID, which users cannot edit.
+	 * The task of the newest note with this delivery effect ID, on any task. Effect markers live in
+	 * the message ID, which users cannot edit.
 	 */
-	async findTaskByEffect(effectId: string, match: "exact" | "prefix"): Promise<number | null> {
+	async findTaskByEffect(effectId: string): Promise<number | null> {
 		const marker = this.deliveryEffectId({ id: effectId });
 		const result = await this.client.searchRead("mail.message", {
 			domain: [
 				["model", "=", "project.task"],
-				["message_id", "=like", `<ghoodoo.${marker}${match === "exact" ? "." : ""}%@github>`],
+				["message_id", "=like", `<ghoodoo.${marker}.%@github>`],
 			],
 			fields: ["res_id"],
 			order: "id desc",

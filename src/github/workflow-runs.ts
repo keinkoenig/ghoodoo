@@ -1,5 +1,5 @@
 import type { DeliveryEffect, OdooClient } from "../odoo/client.js";
-import type { DeliveryContext, ProcessResult } from "./events.js";
+import type { ProcessResult } from "./events.js";
 
 export interface WorkflowRunEvent {
 	action: string;
@@ -141,7 +141,6 @@ export async function handleWorkflowRunEvent(
 	event: WorkflowRunEvent,
 	odoo: OdooClient,
 	config: WorkflowFailureConfig,
-	_context: DeliveryContext,
 ): Promise<ProcessResult> {
 	const run = event.workflow_run;
 	const repository = event.repository.full_name;
@@ -151,7 +150,7 @@ export async function handleWorkflowRunEvent(
 		const workflow = `workflow-failure-${await workflowKey(repository, run.name)}`;
 		const effect: DeliveryEffect = { id: `${workflow}-run-${run.id}-${run.run_attempt}` };
 		// The run is noted already, maybe on a task closed since: nothing to do.
-		if ((await odoo.findTaskByEffect(effect.id, "exact")) !== null) {
+		if ((await odoo.findTaskByEffect(effect.id)) !== null) {
 			return { processed: 1, errors: [] };
 		}
 		// A retry after this attempt created its task but did not note it: note it there, even if the

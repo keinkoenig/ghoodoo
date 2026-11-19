@@ -176,7 +176,7 @@ async function processQueuedEvent(
 		);
 		// Queued while the feature was configured; without its settings there is nothing to do.
 		result = config
-			? await handleWorkflowRunEvent(message.event, odoo, config, deliveryContext)
+			? await handleWorkflowRunEvent(message.event, odoo, config)
 			: { processed: 0, errors: [] };
 	}
 
@@ -248,8 +248,7 @@ export const handler = {
 					{ status: 400 },
 				);
 			}
-			const run = event;
-			if (!config || !isTrackedWorkflowFailure(run, config)) {
+			if (!config || !isTrackedWorkflowFailure(event, config)) {
 				return Response.json({
 					status: "ok",
 					event: eventType,
@@ -260,7 +259,7 @@ export const handler = {
 				await env.GITHUB_EVENTS_QUEUE.send({
 					eventType,
 					deliveryId,
-					event: compactWorkflowRunEvent(run),
+					event: compactWorkflowRunEvent(event),
 				});
 				return Response.json(
 					{ status: "queued", event: eventType, deliveryId, messages: 1 },
